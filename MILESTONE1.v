@@ -1,5 +1,3 @@
-
-
 //KEY0 HIT
 //KEY1 RESET - ALL TO BEGIN
 //KEY2 START - BEGIN TO PLAY
@@ -183,16 +181,16 @@ module button_pulse #(parameter [31:0] DEBOUNCE_CYCLES = 32'd500000)(
                 debounce <= 32'd0;
             end else if (debounce == DEBOUNCE_CYCLES - 32'd1) begin
                 stable <= sync2;
-                               debounce <= 32'd0;
+                debounce <= 32'd0;
                 if (!sync2)
                     Pulse <= 1'b1;
             end else begin
-                               debounce <= debounce + 32'd1;
-                        end
+                    debounce <= debounce + 32'd1;
+            end
         end
 
     end
-endmodule;
+endmodule
 
 
 
