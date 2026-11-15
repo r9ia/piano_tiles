@@ -7,7 +7,7 @@
 //HEX5 state 0, 1 2 (begin play end)
 //HEX4-3 COUNTDONW form 6-0
 //HEX0 final score (shwon in END)
-//z
+//v2
 
 
 
