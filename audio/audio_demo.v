@@ -13,7 +13,6 @@ module audio_demo (
     output AUD_DACDAT,
     output FPGA_I2C_SCLK
 );
-    // Set this to the actual sample count printed by wav_to_mif.py.
     // Default plays all 262144 samples, including any silence padding.
     parameter integer SONG_SAMPLES = 262144;
 
