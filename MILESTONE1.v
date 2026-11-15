@@ -35,9 +35,9 @@ module MILESTONE1 #(
 
 
     input_controller #(.DEBOUNCE_CYCLES(DEBOUNCE_CYCLES)) INPUTS (
-        .Clock(CLOCK_50), .Resetn(Resetn),
-        .StartKeyn(KEY[2]), .HitKeyn(KEY[0]),
-        .StartPulse(StartPulse), .PressPulse(PressPulse)
+    .Clock(CLOCK_50), .Resetn(Resetn),
+    .StartKeyn(KEY[2]), .Hitkeyn(KEY[0]),
+    .StartPulse(StartPulse), .PressPulse(PressPulse)
     );
 
     gameFSM FSM (
@@ -51,25 +51,25 @@ module MILESTONE1 #(
     ) TIMER (
         .Clock(CLOCK_50), .Resetn(Resetn),
         .Clear(begin_state), .Playing(playing),
-        .half_step(half_step), .time_up(time_up)
+        .halfstep(half_step), .timeup(time_up)
     );
 
     note_scheduler SCHEDULER (
-        .Playing(playing), .half_step(half_step),
+        .Playing(playing), .halfstep(half_step),
         .note_num(note_number), .cueon(cue_on)
     );
 
     hit_detector DETECTOR (
         .Clock(CLOCK_50), .Resetn(Resetn),
         .Clear(begin_state), .Playing(playing),
-        .PressPulse(PressPulse), .cue_on(cue_on),
-        .note_number(note_number),
-        .hit(hit_event), .scored_led(scored_led)
+        .PressPulse(PressPulse), .cueon(cue_on),
+        .note(note_number),
+        .hit(hit_event), .score_led(scored_led)
     );
 
     score_register SCORE (
         .Clock(CLOCK_50), .Resetn(Resetn),
-        .Clear(begin_state), .hit_event(hit_event), .score(score)
+        .Clear(begin_state), .hit(hit_event), .score(score)
     );
 
     assign LEDR = {scored_led, 8'b00000000, cue_on};
@@ -254,34 +254,34 @@ endmodule
 module game_timer #(
     parameter [31:0] HALF_SEC_CYCLES = 32'd25000000,
     parameter [7:0] HALFSTEP = 8'd12
-
 )(
     input wire Clock, Resetn, Clear, Playing,
     output reg [7:0] halfstep,
     output wire timeup
-
-); // half sec stepper
+);
     reg [31:0] count;
+
     assign timeup = (halfstep >= HALFSTEP);
-    always @(posedge Clock or negedge Resetn)
-    begin
+
+    always @(posedge Clock or negedge Resetn) begin
         if (!Resetn) begin
             count <= 32'd0;
             halfstep <= 8'd0;
-        end else if (Clear) begin
+        end
+        else if (Clear) begin
             count <= 32'd0;
             halfstep <= 8'd0;
-        end else if (Playing && !timeup ) begin
-            if (count == HALF_SEC_CYCLES - 32'd1)begin
+        end
+        else if (Playing && !timeup) begin
+            if (count == HALF_SEC_CYCLES - 32'd1) begin
                 count <= 32'd0;
                 halfstep <= halfstep + 8'd1;
-                        end
-            else
+            end
+            else begin
                 count <= count + 32'd1;
             end
         end
-
-
+    end
 endmodule
 
 //=====================================================================================
