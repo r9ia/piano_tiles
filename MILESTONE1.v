@@ -1,3 +1,5 @@
+
+
 //KEY0 HIT
 //KEY1 RESET - ALL TO BEGIN
 //KEY2 START - BEGIN TO PLAY
@@ -11,7 +13,7 @@
 
 
 
-module milestone1_top #(
+module MILESTONE1 #(
     parameter [31:0] HALF_SEC_CYCLES = 32'd25000000,
     parameter [31:0] DEBOUNCE_CYCLES = 32'd500000,
     parameter [7:0] GAME_HALF_STEPS = 8'd12
@@ -47,7 +49,7 @@ module milestone1_top #(
 
     game_timer #(
         .HALF_SEC_CYCLES(HALF_SEC_CYCLES),
-        .GAME_HALF_STEPS(GAME_HALF_STEPS)
+        .HALFSTEP(GAME_HALF_STEPS)
     ) TIMER (
         .Clock(CLOCK_50), .Resetn(Resetn),
         .Clear(begin_state), .Playing(playing),
@@ -56,7 +58,7 @@ module milestone1_top #(
 
     note_scheduler SCHEDULER (
         .Playing(playing), .half_step(half_step),
-        .note_number(note_number), .cue_on(cue_on)
+        .note_num(note_number), .cueon(cue_on)
     );
 
     hit_detector DETECTOR (
@@ -64,7 +66,7 @@ module milestone1_top #(
         .Clear(begin_state), .Playing(playing),
         .PressPulse(PressPulse), .cue_on(cue_on),
         .note_number(note_number),
-        .hit_event(hit_event), .scored_led(scored_led)
+        .hit(hit_event), .scored_led(scored_led)
     );
 
     score_register SCORE (
@@ -129,18 +131,18 @@ endmodule
 
 module gameFSM(
 
-    input Clock, Resetn, Start, timeup;
-    output reg [1:0] state;
+    input Clock, Resetn, Start, timeup,
+    output reg [1:0] state
 );
     localparam [1:0] BEGIN_STATE = 2'd0,
                     PLAY_STATE = 2'd1,
                     END_STATE= 2'd2;
 
-    always @(posedge Clock or negedge Resetn) 
+    always @(posedge Clock or negedge Resetn)
     begin
         if (!Resetn)
             state <= BEGIN_STATE;
-        else 
+        else
         begin
             case (state)
                 BEGIN_STATE: if (Start) state <= PLAY_STATE;
@@ -179,13 +181,14 @@ module button_pulse #(parameter [31:0] DEBOUNCE_CYCLES = 32'd500000)(
             Pulse <= 1'b0;
             if (sync2 == stable) begin
                 debounce <= 32'd0;
-            end else if (debounce_count == DEBOUNCE_CYCLES - 32'd1) begin
-                debounce <= sync2;
+            end else if (debounce == DEBOUNCE_CYCLES - 32'd1) begin
+                stable <= sync2;
+                               debounce <= 32'd0;
                 if (!sync2)
                     Pulse <= 1'b1;
             end else begin
-                debounce <= debounce + 32'd1;
-            end
+                               debounce <= debounce + 32'd1;
+                        end
         end
 
     end
@@ -202,7 +205,7 @@ module hit_detector(
 );
     reg[1:0] previous_note;
     reg hit_this;
-    assign hit_event = Playing && cueon && PressPulse && !hit_this;
+    assign hit = Playing && cueon && PressPulse && !hit_this;
     assign score_led = Playing && cueon && hit_this;
 
     always @(posedge Clock or negedge Resetn) begin
@@ -213,12 +216,12 @@ module hit_detector(
         end else if (Clear) begin
             previous_note <= 2'd0;
             hit_this <= 1'b0;
-        end else if (Playing )begin 
-            if (note_num != previous_note)begin
-                previous_note <= note_num;
+        end else if (Playing )begin
+            if (note != previous_note)begin
+                previous_note <= note;
                 hit_this <= 1'b0;
-                
-            end else if (hit_event )begin 
+               
+            end else if (hit )begin
                 hit_this <= 1'b1;
             end
         end
@@ -235,11 +238,11 @@ module score_register(
 
 );
     always @(posedge Clock or negedge Resetn) begin
-        if (!Resetn) 
+        if (!Resetn)
             score <= 4'd0;
-        else if (Clear) 
+        else if (Clear)
             score <= 4'd0;
-        else if (hit && score < 4'd3) 
+        else if (hit && score < 4'd3)
             score <= score + 4'd1;
     end
 endmodule
@@ -251,8 +254,8 @@ endmodule
 
 
 module game_timer #(
-    parameter [31:0] HALF_SEC_CYCLES = 32'd25000000;
-    parameter [7:0] HALFSTEP = 8'd12;
+    parameter [31:0] HALF_SEC_CYCLES = 32'd25000000,
+    parameter [7:0] HALFSTEP = 8'd12
 
 )(
     input wire Clock, Resetn, Clear, Playing,
@@ -262,7 +265,7 @@ module game_timer #(
 ); // half sec stepper
     reg [31:0] count;
     assign timeup = (halfstep >= HALFSTEP);
-    alwasy @(posedge Clock or negedge Resetn)
+    always @(posedge Clock or negedge Resetn)
     begin
         if (!Resetn) begin
             count <= 32'd0;
@@ -274,12 +277,12 @@ module game_timer #(
             if (count == HALF_SEC_CYCLES - 32'd1)begin
                 count <= 32'd0;
                 halfstep <= halfstep + 8'd1;
+                        end
             else
                 count <= count + 32'd1;
             end
         end
 
-    end
 
 endmodule
 
@@ -288,9 +291,9 @@ endmodule
 
 module note_scheduler(
     input wire Playing,
-    input wire [7:0] halfstep;
+    input wire [7:0] halfstep,
     output wire [1:0] note_num,
-    output wire cueon;
+    output wire cueon
 
 );
     assign note_num = halfstep[3:2];
@@ -300,11 +303,29 @@ endmodule
 
 //=====================================================================================
 
-
-module input_controller #(parameter [31:0] DEBOUNCE_CYCLES = 32'd500000)(
+module input_controller #(
+    parameter [31:0] DEBOUNCE_CYCLES = 32'd500000
+)(
     input wire Clock, Resetn, StartKeyn, Hitkeyn,
     output wire StartPulse, PressPulse
 );
-    button_pulse #(.DEBOUNCE_CYCLES(DEBOUNCE_CYCLES)) START_BUTTON(.Clock(Clock), .Resetn(Resetn), .Keyn(StartKeyn), .Pulse(StartPulse));
-    button_pulse #(.DEBOUNCE_CYCLES(DEBOUNCE_CYCLES)) HIT_BUTTON(.Clock(Clock), .Resetn(Resetn), .Keyn(StartKeyn), .Pulse(StartPulse));
+
+    button_pulse #(
+        .DEBOUNCE_CYCLES(DEBOUNCE_CYCLES)
+    ) START_BUTTON (
+        .Clock(Clock),
+        .Resetn(Resetn),
+        .Keyn(StartKeyn),
+        .Pulse(StartPulse)
+    );
+
+    button_pulse #(
+        .DEBOUNCE_CYCLES(DEBOUNCE_CYCLES)
+    ) HIT_BUTTON (
+        .Clock(Clock),
+        .Resetn(Resetn),
+        .Keyn(Hitkeyn),
+        .Pulse(PressPulse)
+    );
+
 endmodule
