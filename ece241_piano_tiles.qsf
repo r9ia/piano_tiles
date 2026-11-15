@@ -46,3 +46,16 @@ set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 256
+set_global_assignment -name VERILOG_FILE audio/avconf/I2C_Controller.v
+set_global_assignment -name VERILOG_FILE audio/avconf/avconf.v
+set_global_assignment -name QIP_FILE audio/intel_sound.qip
+set_global_assignment -name VERILOG_FILE audio/audio_demo.v
+set_global_assignment -name VERILOG_FILE audio/Audio_Controller/Audio_Controller.v
+set_global_assignment -name VERILOG_FILE audio/Audio_Controller/Audio_Clock.v
+set_global_assignment -name VERILOG_FILE audio/Audio_Controller/Altera_UP_SYNC_FIFO.v
+set_global_assignment -name VERILOG_FILE audio/Audio_Controller/Altera_UP_Clock_Edge.v
+set_global_assignment -name VERILOG_FILE audio/Audio_Controller/Altera_UP_Audio_Out_Serializer.v
+set_global_assignment -name VERILOG_FILE audio/Audio_Controller/Altera_UP_Audio_In_Deserializer.v
+set_global_assignment -name VERILOG_FILE audio/Audio_Controller/Altera_UP_Audio_Bit_Counter.v
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
