@@ -19,7 +19,16 @@ module MILESTONE1 #(
     input  wire       CLOCK_50,
     input  wire [3:0] KEY,
     output wire [9:0] LEDR,
-    output wire [6:0] HEX5, HEX4, HEX3, HEX2, HEX1, HEX0
+    output wire [6:0] HEX5, HEX4, HEX3, HEX2, HEX1, HEX0,
+    //audio ports
+    input  wire AUD_ADCDAT,
+    inout  wire AUD_BCLK,
+    inout  wire AUD_ADCLRCK,
+    inout  wire AUD_DACLRCK,
+    inout  wire FPGA_I2C_SDAT,
+    output wire AUD_XCK,
+    output wire AUD_DACDAT,
+    output wire FPGA_I2C_SCLK
 );
     wire Resetn;
     wire StartPulse, PressPulse;
@@ -71,6 +80,24 @@ module MILESTONE1 #(
         .Clock(CLOCK_50), .Resetn(Resetn),
         .Clear(begin_state), .hit(hit_event), .score(score)
     );
+
+    audio_demo AUDIO (
+    .CLOCK_50(CLOCK_50),
+
+    // KEY[3:2] unused; KEY[1] enables playback;
+    // KEY[0] -> reset
+    .KEY({2'b11, playing, Resetn}),
+    .SW(4'b0000),
+
+    .AUD_ADCDAT(AUD_ADCDAT),
+    .AUD_BCLK(AUD_BCLK),
+    .AUD_ADCLRCK(AUD_ADCLRCK),
+    .AUD_DACLRCK(AUD_DACLRCK),
+    .FPGA_I2C_SDAT(FPGA_I2C_SDAT),
+    .AUD_XCK(AUD_XCK),
+    .AUD_DACDAT(AUD_DACDAT),
+    .FPGA_I2C_SCLK(FPGA_I2C_SCLK)
+);
 
     assign LEDR = {scored_led, 8'b00000000, cue_on};
 
