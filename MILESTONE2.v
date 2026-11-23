@@ -1,24 +1,12 @@
-// ============================================================================
-// ECE241 MILESTONE 2 -- engine-driven H/J/K/L rhythm game, 3 lives
-// All gameplay and song_rom modules are in THIS ONE SOURCE FILE.
-// Do NOT add a separate song_rom.v or any older MILESTONE2 variant.
-// External dependencies: vga_adapter, intel_sound, Audio_Controller, avconf,
-// audio memory initialization assets, and correct DE1-SoC pin assignments.
-// Game states: BEGIN=0 PLAYING=1 END=2 GAME_OVER=3.
-// Valid hits: tile rectangle must overlap the hit line + matching H/J/K/L.
-// A 51-pixel tile falls 1 logical pixel / 10ms: 0.5s hit window.
-// Success: freeze tile in place as white for 150ms, then remove.
-// Miss: lose one life after passing the line; continue falling off-screen.
-// 46-second Miku WAV; the note chart is ILLUSTRATIVE, not transcribed.
-// VGA framebuffer: 320x240, COLOR_DEPTH=3, original 160x120 art scaled 2x.
-// ============================================================================
-
-// -------------------- MILESTONE2 --------------------
-// DE1-SoC top-level. Requires course VGA adapter and external audio IP.
-// KEY[1] active-low reset; KEY[2] active-low start; keyboard H/J/K/L.
+//top level module that connects milestone2 w/ vga, audio, leds, 7seg displays, etc.
+//key[1]: resetn
+//key[2]: startn
 module MILESTONE2 #(
     parameter [31:0] CYCLES_PER_TICK = 32'd500000, // 10ms at 50MHz
-    parameter [15:0] SONG_TICKS = 16'd4600,       // 46 seconds
+	 
+	 //# of seconds for playing state
+	 //46s for full, 5 secs for demo
+    parameter [15:0] GAMEPLAY_DURATION_TICKS = 16'd500,       
     parameter USE_AUDIO_TIME = 0,                // enable ONLY after audio sync verification
     parameter [6:0] TILE_H = 7'd51,
     parameter [6:0] HIT_LINE_Y = 7'd96,
@@ -62,7 +50,7 @@ module MILESTONE2 #(
 
     MILESTONE2_CORE #(
         .CYCLES_PER_TICK(CYCLES_PER_TICK),
-        .SONG_TICKS(SONG_TICKS),
+        .GAMEPLAY_DURATION_TICKS(GAMEPLAY_DURATION_TICKS),
         .USE_AUDIO_TIME(USE_AUDIO_TIME),
         .TILE_H(TILE_H), .HIT_LINE_Y(HIT_LINE_Y),
         .HIT_FREEZE_TICKS(HIT_FREEZE_TICKS)
@@ -79,6 +67,8 @@ module MILESTONE2 #(
         .hit_flash(hit_flash), .miss_event(miss_event),
         .next_note_index(next_note_index)
     );
+	 
+	 //vga 
 
     wire [8:0] pixel_x;
     wire [7:0] pixel_y;
@@ -90,7 +80,7 @@ module MILESTONE2 #(
         .tile_lanes(tile_lanes), .tile_ys(tile_ys), .hit_flash(hit_flash),
         .x(pixel_x), .y(pixel_y), .colour(pixel_colour), .plot(pixel_plot)
     );
-    // Verified against the Quercus vga_adapter.v supplied by the student.
+
     // Port write is the input; writeEn is an INTERNAL signal in the adapter.
     vga_adapter VGA (
         .resetn(Resetn), .clock(CLOCK_50),
@@ -103,8 +93,11 @@ module MILESTONE2 #(
     defparam VGA.RESOLUTION = "320x240";
     defparam VGA.COLOR_DEPTH = 3;
     defparam VGA.BACKGROUND_IMAGE = "vga_adapter/black.mif";
+	 
+	 //AUDIO
+	 //instantiate song_samples 24 000 for 5s demo
 
-    audio_miku #(.SONG_SAMPLES(220800)) AUDIO_PLAYER (
+    audio_miku #(.SONG_SAMPLES(24000)) AUDIO_PLAYER (
         .CLOCK_50(CLOCK_50), .Resetn(Resetn),
         .StartPulse(start_pulse && (game_state == 2'd0)),
         .Playing(game_state == 2'd1),
@@ -115,7 +108,7 @@ module MILESTONE2 #(
         .sample_index(audio_sample_index)
     );
 
-    wire [15:0] remain_ticks = (song_tick >= SONG_TICKS) ? 16'd0 : SONG_TICKS-song_tick;
+    wire [15:0] remain_ticks = (song_tick >= GAMEPLAY_DURATION_TICKS) ? 16'd0 : GAMEPLAY_DURATION_TICKS-song_tick;
     wire [7:0] remaining_seconds = (remain_ticks + 16'd99) / 16'd100;
     wire [3:0] second_tens = remaining_seconds / 8'd10;
     wire [3:0] second_ones = remaining_seconds % 8'd10;
@@ -129,19 +122,34 @@ module MILESTONE2 #(
     hex7 SH (.value(score_hundreds), .seg(HEX2));
     hex7 SL (.value(score_tens), .seg(HEX1));
     hex7 SO (.value(score_ones), .seg(HEX0));
+	 
+	 //debug led lights
+	 assign LEDR[9] = |hit_flash;          // Successful hit
+	 assign LEDR[8] = invalid_press_event; // Invalid key press
+	 assign LEDR[7] = miss_event;          // Missed tile
 
-    // LEDR[9]=hit, [8]=bad press, [7]=miss, [6:3]=H/J/K/L, [2:0]=lives
-    assign LEDR = {(|hit_flash), invalid_press_event, miss_event,
-                   lane_press, (lives >= 2'd1), (lives >= 2'd2), (lives >= 2'd3)};
+	 // Lane Press Indicators (H / J / K / L)
+	 assign LEDR[6] = lane_press[3];       // H
+	 assign LEDR[5] = lane_press[2];       // J
+	 assign LEDR[4] = lane_press[1];       // K
+	 assign LEDR[3] = lane_press[0];       // L
+
+	 // Remaining Lives Indicators
+	 assign LEDR[2] = (lives >= 2'd1);     // At least 1 life
+	 assign LEDR[1] = (lives >= 2'd2);     // At least 2 lives
+	 assign LEDR[0] = (lives >= 2'd3);     // All 3 lives
+
 endmodule
 
-// -------------------- MILESTONE2_CORE --------------------
+
+// milestone2_core
 // Complete gameplay engine. Can be simulated without VGA or audio vendor IP.
 // Hit detector uses the same tile top + height as the VGA renderer.
-// It checks engine geometry, not framebuffer pixels. No duplicate timing window.
+
 module MILESTONE2_CORE #(
     parameter [31:0] CYCLES_PER_TICK = 32'd500000,
-    parameter [15:0] SONG_TICKS = 16'd5000,
+	 //default 46s
+    parameter [15:0] GAMEPLAY_DURATION_TICKS = 16'd4600,
     parameter USE_AUDIO_TIME = 0,
     parameter [6:0] TILE_H = 7'd51,
     parameter [6:0] HIT_LINE_Y = 7'd96,
@@ -178,7 +186,7 @@ module MILESTONE2_CORE #(
     wire [3:0] successful_lanes;
     wire [15:0] external_tick = audio_sample_index / 18'd48;
     wire actual_time_up = (USE_AUDIO_TIME != 0) ?
-        (audio_sample_index >= (SONG_TICKS * 32'd48 - 32'd1)) : local_timeup;
+        (audio_sample_index >= (GAMEPLAY_DURATION_TICKS * 32'd48 - 32'd1)) : local_timeup;
     assign song_tick = (USE_AUDIO_TIME != 0) ? external_tick : local_tick;
 
     // Wait for on-screen tiles to finish falling/fading before leaving PLAY:
@@ -190,7 +198,7 @@ module MILESTONE2_CORE #(
                          (tile_visible == 8'd0)),
                  .lives_zero(no_lives && (tile_visible == 8'd0)),
                  .state(game_state));
-    song_timebase #(.CYCLES_PER_TICK(CYCLES_PER_TICK), .SONG_TICKS(SONG_TICKS)) TIMER (
+    song_timebase #(.CYCLES_PER_TICK(CYCLES_PER_TICK), .GAMEPLAY_DURATION_TICKS(GAMEPLAY_DURATION_TICKS)) TIMER (
         .Clock(CLOCK_50), .Resetn(Resetn), .Clear(begin_state), .Playing(playing),
         .ContinueAfterTimeup(no_lives || (tile_visible != 8'd0)),
         .song_tick(local_tick), .tick_pulse(local_tick_pulse), .timeup(local_timeup)
@@ -404,7 +412,7 @@ endmodule
 // -------------------- song_timebase --------------------
 module song_timebase #(
     parameter [31:0] CYCLES_PER_TICK = 32'd500000,
-    parameter [15:0] SONG_TICKS = 16'd5000
+    parameter [15:0] GAMEPLAY_DURATION_TICKS = 16'd5000
 )(
     input wire Clock, Resetn, Clear, Playing, ContinueAfterTimeup,
     output reg [15:0] song_tick,
@@ -412,7 +420,7 @@ module song_timebase #(
     output wire timeup
 );
     reg [31:0] divider;
-    assign timeup = song_tick >= SONG_TICKS;
+    assign timeup = song_tick >= GAMEPLAY_DURATION_TICKS;
     always @(posedge Clock or negedge Resetn) begin
         if (!Resetn) begin
             divider <= 0; song_tick <= 0; tick_pulse <= 0;
@@ -431,7 +439,7 @@ module song_timebase #(
     end
 endmodule
 
-// -------------------- tile_manager --------------------
+// tile_manager
 // Each slot has 3 visual/game phases:
 // 1. ACTIVE: falling colored tile, hittable while its rectangle intersects
 //    the horizontal hit line (the hit_detector checks the same geometry).
@@ -797,7 +805,9 @@ endmodule
 
 // -------------------- audio_miku --------------------
 module audio_miku #(
-    parameter integer SONG_SAMPLES = 220800 // 46 seconds at 4800 Hz
+//# of samples = 4800 x # of secs
+//46 seconds (full song): 220800. also the default value unless instantiated otherwise
+    parameter integer SONG_SAMPLES = 220800
 )(
     input wire CLOCK_50, Resetn, StartPulse, Playing,
     input wire AUD_ADCDAT,
@@ -909,24 +919,10 @@ module song_rom (
             9'd1: begin target_tick = 16'd145; lane = 2'd1; valid = 1'b1; end // 1450 ms, J
             9'd2: begin target_tick = 16'd185; lane = 2'd2; valid = 1'b1; end // 1850 ms, K
             9'd3: begin target_tick = 16'd230; lane = 2'd3; valid = 1'b1; end // 2300 ms, L
-            9'd4: begin target_tick = 16'd265; lane = 2'd0; valid = 1'b1; end // 2650 ms, H
-            9'd5: begin target_tick = 16'd300; lane = 2'd2; valid = 1'b1; end // 3000 ms, K
-            9'd6: begin target_tick = 16'd330; lane = 2'd1; valid = 1'b1; end // 3300 ms, J
-            9'd7: begin target_tick = 16'd330; lane = 2'd3; valid = 1'b1; end // 3300 ms, L
-            9'd8: begin target_tick = 16'd385; lane = 2'd0; valid = 1'b1; end // 3850 ms, H
-            9'd9: begin target_tick = 16'd420; lane = 2'd1; valid = 1'b1; end // 4200 ms, J
-            9'd10: begin target_tick = 16'd470; lane = 2'd2; valid = 1'b1; end // 4700 ms, K
-            9'd11: begin target_tick = 16'd510; lane = 2'd3; valid = 1'b1; end // 5100 ms, L
-            9'd12: begin target_tick = 16'd580; lane = 2'd1; valid = 1'b1; end // 5800 ms, J
-            9'd13: begin target_tick = 16'd650; lane = 2'd0; valid = 1'b1; end // 6500 ms, H
-            9'd14: begin target_tick = 16'd720; lane = 2'd3; valid = 1'b1; end // 7200 ms, L
-            9'd15: begin target_tick = 16'd900; lane = 2'd2; valid = 1'b1; end // 9000 ms, K
-            9'd16: begin target_tick = 16'd1250; lane = 2'd0; valid = 1'b1; end // 12500 ms, H
-            9'd17: begin target_tick = 16'd1800; lane = 2'd1; valid = 1'b1; end // 18000 ms, J
-            9'd18: begin target_tick = 16'd2500; lane = 2'd2; valid = 1'b1; end // 25000 ms, K
-            9'd19: begin target_tick = 16'd3200; lane = 2'd3; valid = 1'b1; end // 32000 ms, L
-            9'd20: begin target_tick = 16'd4000; lane = 2'd1; valid = 1'b1; end // 40000 ms, J
+
             default: begin end
         endcase
     end
 endmodule
+
+
