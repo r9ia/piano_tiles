@@ -1,0 +1,8 @@
+-- 160 x 120 initial black framebuffer, 3-bit RGB, no sprites
+WIDTH=3;
+DEPTH=19200;
+ADDRESS_RADIX=UNS;
+DATA_RADIX=BIN;
+CONTENT BEGIN
+    [0..19199] : 000;
+END;
